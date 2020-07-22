@@ -1,0 +1,68 @@
+---
+title: Visualising Chinese Wind Energy Production
+author: Alex Stephenson
+date: '2020-07-20'
+slug: chinese-energy-production.en-us
+thumbnailImage: "img/windmill_graph_4.png"
+thumbnailImagePosition: right
+categories: []
+tags:
+  - rstats
+  - environment
+keywords:
+  - tech
+---
+
+
+
+<p>This blog post uses data from the energy transition think tank Ember to display how China’s wind energy has changed over the past decade.</p>
+<!--more-->
+<p>I have created an infographic which displays the data as a wind turbine (or, at least, my closest attempt to make a wind turbine). In order to generate the blades a ggproto object was made. I have made the code a bit more legible by storing the code required for this in a package called <code>geomwindmill</code>, available on my GitHub. This, for me, is the most interesting part of the data viz, and installing the package (it only has the one function), and then viewing the code behind the function, should provide more of an insight into how this customisation was achieved.</p>
+<pre class="r"><code>library(tidyverse)
+library(grid)
+#library(devtools)
+#install_github(&#39;alex-stephenson/geomwindmill&#39;)  #available on my GitHub
+library(geomwindmill) #package for customised function to make windmill shaped bars in barplot
+library(hrbrthemes)
+import_plex_sans()</code></pre>
+<pre class="r"><code>data &lt;- read_csv(&#39;Global_elec_review_2020_China.csv&#39;)
+
+data_clean &lt;- data %&gt;%
+  filter(Category %in% c(&#39;Fossil generation&#39;, &#39;Fossil-free generation&#39;)) %&gt;% 
+  filter(Type == &quot;Wind&quot;) %&gt;% 
+  select(Type, Year, Value_TWh) %&gt;% 
+  filter(Year &gt;= 2010) %&gt;% 
+  mutate(id = seq(1,10)) %&gt;% 
+  mutate(film_year = paste(&quot;   &quot;, Year,&quot;:&quot;, Value_TWh, &quot;TWh    &quot;))
+  
+label_data &lt;- data_clean
+number_of_bar &lt;- nrow(label_data)
+angle &lt;-  90 - 360 * (label_data$id-0.5) /number_of_bar 
+label_data$hjust&lt;-ifelse( angle &lt; -90, 1, 0)
+label_data$angle&lt;-ifelse(angle &lt; -90, angle+180, angle)</code></pre>
+<pre class="r"><code>ggplot(data_clean, aes(x=Year, y=Value_TWh, color=id, group = id)) +
+  geom_windmill(color=&#39;black&#39;, aes(fill=Value_TWh), span_x = 0.9) + #code for this function is available on my GitHub
+  coord_polar() +
+  ylim(-150,500)  + 
+   geom_rect(xmin = 2014.39, xmax = 2014.6, ymin = 200, ymax = 600,
+            alpha = 1, fill = &quot;darkgrey&quot;, colour = &quot;black&quot;) +
+  theme_minimal() +
+  geom_text(aes(label=film_year),
+                  hjust = label_data$hjust,
+                  color = &quot;black&quot;,
+                  fontface = &quot;bold&quot;,
+                  alpha = 0.6,
+                  size = 3.6,
+                  angle = label_data$angle) + 
+                  coord_polar(start = 0) +
+    labs(title = &quot;\nBlowing in the Wind:\nThe Growth of Wind Energy\nProduction in China&quot;, subtitle = &quot;Between the years 2010 and 2020&quot;, caption = &quot;Data: Ember Global Electricity Review\n Graphics: Alex Stephenson (generated using R)&quot;) +
+  theme( axis.text = element_blank(),
+               axis.title = element_blank(),
+                plot.background = element_rect(fill = &quot;lightgreen&quot;, color = NA),
+               plot.title = element_text(size = 26, face = &quot;bold&quot;, colour = &#39;#2F4F4F&#39;, hjust = 1),
+              plot.subtitle = element_text(size = 16, face = c(&quot;bold.italic&quot;), hjust = 1, colour = &#39;#2F4F4F&#39;),
+               panel.grid = element_blank(), 
+              plot.caption = element_text(face = &quot;bold.italic&quot;, size = 16, hjust = 1),
+              legend.position = &quot;none&quot;)</code></pre>
+<pre><code>## Coordinate system already present. Adding new coordinate system, which will replace the existing one.</code></pre>
+<p><img src="/post/2020-07-20-chinese-energy-production.en-us_files/figure-html/unnamed-chunk-3-1.png" width="960" /></p>

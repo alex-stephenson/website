@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Posts on Alex Stephenson</title>
+    <link>/post/</link>
+    <description>Recent content in Posts on Alex Stephenson</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <lastBuildDate>Tue, 21 Jul 2020 00:00:00 +0000</lastBuildDate>
+    
+	<atom:link href="/post/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>Analysing Russian Misinformation: Network Analysis (Part 2/3)</title>
+      <link>/2020/07/using-network-analysis-to-understand-misinformation-strategies.en-us/</link>
+      <pubDate>Tue, 21 Jul 2020 00:00:00 +0000</pubDate>
+      
+      <guid>/2020/07/using-network-analysis-to-understand-misinformation-strategies.en-us/</guid>
+      <description>
+
+
+</description>
+    </item>
+    
+    <item>
+      <title>Analysing Russian Misinformation: Theoretical Strutiny (Part 1/3)</title>
+      <link>/2020/07/analysing-russian-misinformation-theoretical-strutiny-part-1-3.en-us/</link>
+      <pubDate>Mon, 20 Jul 2020 00:00:00 +0000</pubDate>
+      
+      <guid>/2020/07/analysing-russian-misinformation-theoretical-strutiny-part-1-3.en-us/</guid>
+      <description>
+
+
+&lt;p&gt;As part of my dissertation I used network analysis and machine learning to analyse Russian misinformation on Twitter. I have split the research into three blog posts. This is the first one, where I examine currently theories of modern autocracy, specifically ‘Informational Autocracy’, by Guriev and Treisman.&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>From Greenpeace to XR: How The Structure of Environmental Movements Shapes Political Outcomes</title>
+      <link>/2020/07/greenpeace_xr/</link>
+      <pubDate>Mon, 20 Jul 2020 00:00:00 +0000</pubDate>
+      
+      <guid>/2020/07/greenpeace_xr/</guid>
+      <description>
+
+
+&lt;p&gt;This post is a paper published by the European Centre for Climate, Energy and Resource Security. The aim of the paper is to compare the structures of Greenpeace and Extinction Rebellion in order to better understand how they influence the political process.&lt;/p&gt;
+&lt;p&gt;</description>
+    </item>
+    
+    <item>
+      <title>Visualising Chinese Wind Energy Production</title>
+      <link>/2020/07/chinese-energy-production.en-us/</link>
+      <pubDate>Mon, 20 Jul 2020 00:00:00 +0000</pubDate>
+      
+      <guid>/2020/07/chinese-energy-production.en-us/</guid>
+      <description>
+
+
+&lt;p&gt;This blog post uses data from the energy transition think tank Ember to display how China’s wind energy has changed over the past decade.&lt;/p&gt;
+</description>
+    </item>
+    
+    <item>
+      <title>Using Shiny to Analyse Strava Data</title>
+      <link>/2020/07/shiny_strava/</link>
+      <pubDate>Wed, 01 Jul 2020 00:00:00 +0000</pubDate>
+      
+      <guid>/2020/07/shiny_strava/</guid>
+      <description>
+
+
+&lt;p&gt;Primarily I have worked with numeric and text data. I wanted to get to grips with working with different data sorts, and especially messy data. With this in mind I started to play around with the data from Strava, a popular app for recording exercise. The data proved to both me extremely messy, and was predominantly .gpx, a data format I hadn’t worked with before. Given my thoughts that visualising Strava usage over time might be interesting to not just myself but other strava users, I decided to make this into a Shiny app.&lt;/p&gt;
+</description>
+    </item>
+    
+  </channel>
+</rss>

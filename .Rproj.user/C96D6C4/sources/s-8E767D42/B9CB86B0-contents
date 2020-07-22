@@ -1,0 +1,299 @@
+---
+title: "Spatial analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+
+knitr::opts_knit$set(root.dir = "/Users/alexstephenson/Downloads/strava_data/activities")
+
+
+```
+
+
+```{r}
+     strava_data_clean %>% 
+      select(ride, `Average Speed`) %>% 
+        na.omit() %>% 
+  mutate(avg_speed = `Average Speed` * 3600 / 1000) %>% 
+  filter(avg_speed < 40) %>% 
+  filter(avg_speed > 10) %>% 
+        ggplot(aes(ride, avg_speed)) +
+        geom_smooth(method = "lm", se = F) +
+#  geom_point(alpha = 2, size = 1.5) +
+  geom_line() +
+        theme_clean() +
+  labs(title = "Average speed per ride",
+       x = "Ride number",
+       y = "Average speed (km/h")
+```
+
+
+
+```{r}
+     strava_data_clean %>% 
+      select(ride, `Average Speed`) %>% 
+        na.omit() %>% 
+  mutate(avg_speed = `Average Speed` * 3600 / 1000) %>% 
+  filter(avg_speed < 40) %>% 
+  filter(avg_speed > 10) %>% 
+        ggplot(aes(ride, avg_speed)) +
+     #   geom_smooth(method = "lm", se = F) +
+#  geom_point() +
+  geom_line() +
+        theme_clean() +
+  labs(title = "Average speed per ride",
+       x = "Ride number",
+       y = "Average speed (km/h")
+```
+
+
+```{r}
+
+library(XML)
+library(raster)
+library(sp)
+library(tidyverse)
+library(plotKML)
+library(lubridate)
+library(png)
+library(ggthemes)
+library(grid)
+library(leaflet)
+
+```
+
+data import
+
+```{r}
+
+strava_data_2 <- read_csv( "/Users/alexstephenson/Desktop/R_Studio_Work/Global Environmental Politics/strava_data_2/activities.csv")
+colnames(strava_data_2)
+
+## data_cleaning
+
+strava_data_clean <- strava_data_2 %>% 
+  mutate(elevation_gain = round(`Elevation Gain`, 0),
+         distance = round(Distance_1, digits = -2),
+         distance_km = Distance_1 / 1000,
+         date = dmy_hms(`Activity Date`),
+         date = floor_date(date, "1 day")) %>% 
+         select(-`Activity Date`)
+
+#mean(strava_data$Distance_1, na.rm = T)
+
+strava_data_clean <- strava_data_clean %>% 
+  mutate(cum_total = cumsum(distance_km)) %>% 
+  mutate(ride = seq.int(nrow(.))) 
+
+
+strava_data_clean$days_passed <- as.numeric(strava_data_clean$date - min(strava_data_clean$date)) / 86400
+
+
+strava_data_elevation <- strava_data_clean %>% 
+ select(`Elevation Gain`, days_passed) %>% 
+  na.omit()  %>% 
+  mutate(total_elev = cumsum(`Elevation Gain`)) %>% 
+  mutate(ride = seq.int(nrow(.)))
+
+
+```
+
+
+
+
+
+EDA
+
+```{r EDA}
+
+
+
+
+
+
+
+annotation_1 <- data.frame(
+  x = c(103, 162.1),
+  y = c(1200, 1200),
+  label = c("Christmas\ntime", "Bike broken :("))
+
+
+bike = readPNG('woman_bike.png')
+bike =  rasterGrob(bike, interpolate=TRUE)
+
+
+bike_1 = readPNG('woman_bike_1.png')
+bike_1 =  rasterGrob(bike_1, interpolate=TRUE)
+
+strava_data_clean %>% 
+  ggplot(aes(days_passed, cum_total)) +  
+  geom_line() + 
+  labs(x = "Days passed since first ride", y= "Cumulative total in km") +
+  theme_clean() 
+```
+
+```{r}
+
+annotation <- data.frame(
+  x = c(110, 122, 130),
+  y = c(5000, 10000, 15000),
+  label = c("96 rides for \nfirst 5000m...", "...and then 17...", "...and then 10!"))
+
+
+
+
+
+strava_data_elevation %>% 
+  filter(total_elev > 15000)
+
+strava_data_elevation %>% 
+  ggplot(aes(ride, total_elev)) +
+  geom_line() +
+  theme_clean() +
+  labs(title = "Cumulative meters climbed whilst cycling since October", x = "Ride number", y = "")
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+#### proper unnesting of the entire dataset
+
+
+
+```{r}
+
+#using plotKML
+
+tbl_2 <-
+    dir(pattern = "*.gpx") %>% 
+?
+df <- dir(pattern = "*.gpx") %>% 
+  rbindlist(lapply(., plotKML::readGPX), 
+                    use.names = TRUE, fill = T)
+
+
+
+str(tbl_2)
+
+dput(head(tbl_2))
+
+list_row_frame <- data.frame(do.call(rbind, tbl_4)) %>% 
+  as_data_frame()
+
+list_row_frame_numbered <- list_row_frame %>%
+  mutate(ride = seq.int(nrow(.))) %>% 
+  dplyr::select(tracks, ride) 
+
+unnested_rides <- list_row_frame_numbered %>% 
+  unnest(cols = c(tracks)) %>% 
+  unnest(cols = c(tracks)) %>% 
+    unnest(cols = c(tracks)) #all dataframes matched by row id (rides)
+
+
+```
+
+
+
+### data viz
+
+```{r}
+unnested_rides  %>% 
+  filter(ride %in% c(10:40)) %>% 
+  mutate(ride = as.factor(ride)) %>% 
+  ggplot(aes(lon, lat, col = ride)) +  
+  coord_quickmap() +
+  geom_point(alpha = 0.1) +
+  theme(legend.position = "none")
+
+```
+
+
+trying with ggmaps (but need api)
+
+```{r}
+
+library(ggmap)
+register_google(key = "AIzaSyCaiNvJSB9YKLBujlWR7ItyD1cvATlEWUs", write = TRUE)
+
+#us <- c(left = -125, bottom = 25.75, right = -67, top = 49) 
+#get_stamenmap(us, zoom = 5, maptype = "toner-lite") %>% ggmap() #this works. package + api correctly in use!
+#waco_texas <-get_googlemap("waco texas", zoom = 12, maptype = "satellite") %>% ggmap()
+
+unnested_rides_test <- unnested_rides %>% 
+  filter(ride %in% c(1:20))
+
+unnested_rides_test <- unnested_rides_test %>% 
+  mutate(lon = round(lon, digits = 4)) %>% 
+  mutate(lat = round(lat, digits = 4)) %>% 
+  count(lon, lat, sort = T)
+
+# you can centre it like this: center = c(lon = mean(unnested_rides$lon), lat = mean(unnested_rides$lat)) but for now I will just do London
+
+
+mapImageData <- get_map(location = 'London',
+                              zoom = 12,
+                              color = 'bw',
+                              #scale = 1,
+                              maptype = "terrain")
+ggmap(mapImageData, extent = "device") + # removes axes, etc.
+  geom_point(aes(x = lon,
+                 y = lat),
+             data = unnested_rides,
+            colour = "red3",
+            alpha = 0.025,
+             size = .1)
+```
+
+
+#### leaflet
+
+```{r}
+unnested_rides_test %>% 
+  group_by(ride) %>% 
+  tally %>% 
+  .$ride
+
+for i in length(unnested_rides_test) {
+  
+}
+
+length(unnested_rides_test)
+
+leaflet(data = unnested_rides) %>% 
+  addTiles() %>%
+  addPolylines(~lon, ~lat)
+```
+
+
+```{r}
+for (i in 1:length(unnested_rides_test)){
+    message(i)
+    this_activity_id <- unnested_rides_test[i]
+    l <- leaflet() %>%
+      addPolylines(data = unnested_rides_test, lng = ~lon, lat = ~lat,
+                   color = 'red',
+                   opacity = 0.5,
+                   weight = 0.3)
+  }
+  return(l)
+}
+```
+l
+
+
+
+

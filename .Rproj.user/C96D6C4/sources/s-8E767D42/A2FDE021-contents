@@ -1,0 +1,331 @@
+---
+title: 'Analysing Russian Misinformation: Theoretical Strutiny (Part 1/3)'
+author: Alex Stephenson
+date: '2020-07-20'
+slug: analysing-russian-misinformation-theoretical-strutiny-part-1-3.en-us
+categories: []
+tags: []
+keywords:
+  - tech
+---
+
+As part of my dissertation I used network analysis and machine learning to analyse Russian misinformation on Twitter. I have split the research into three blog posts. This is the first one, where I examine currently theories of modern autocracy, specifically 'Informational Autocracy', by Guriev and Treisman. 
+
+<!--more-->
+
+Informational Autocracy aims to explain ‘how the new dictators survive without using the standard tools of twentieth-century authoritarianism?’ (2019b: 101)’. Guriev and Treisman argue that
+
+>Instead of isolating their countries, imposing ideologies, or terrorizing citizens, such leaders achieve many of the same ends by manipulating public opinion. With the help of censored or co-opted media, they persuade citizens that they are competent and benevolent, their legitimacy rests on popularity rather than fear (emphasis added) (2019a: 1) 
+
+Guriev and Treisman, however, fail to address whether autocrats also take this approach to their online campaigns. As these often covert online efforts become an increasingly important tool in autocratic survival it seems remiss of the authors to have not considered this. This blog post aims to test Guriev and Treisman's claims by examining six million tweets, authored by the Kremlin's 'Internet Research Agency', to see whether they promote an image of competency through the promotion of economic and social trends, and the expense of violent ones. 
+
+In order to understand whether these competency topics are being prioritised we need to start doing some text mining. Firstly, lets import packages and the data 
+As Figure 1 shows, for the majority of the time analysed we see violent tweets making up a greater proportion of tweets than economic or social tweets, with the trend becoming even more pronounced after 2015. Furthermore, whilst Guriev and Treisman analyse autocratic speeches (2019b: 116) and find that roughly one in every forty words was economically focused, only one in every 500 words (0.17%) were economically focused when analysing their online content. In addition, one in every 350 (0.28%) words were violent and one in every 2000 (0.05%) words were social (Table 1).
+
+
+```{r setup, include=FALSE}
+options(digits = 2, scipen = 999)
+set.seed(1234)
+```
+
+```{r message=F, warning=F}
+library(gt) #for making tables
+library(tidyverse) 
+library(lubridate) #dates
+library(tidytext) #text analysis
+library(stm) #stm
+library(ggthemes) #for ggplot2 themes
+library(patchwork) #for patching together plots 
+library(tidystm) #STM eval but tidy
+library(igraph) #network analysis
+library(ggraph) #network analysis 
+library(tidygraph) #more network analysis but tidy so can wrangle graphs
+library(SnowballC) #stemming words
+library(furrr) #in order to implement tidy parallel processing
+plan(multiprocess) #engage multiple cores
+
+```
+
+```{r message=F, warning=F, error=FALSE}
+data <- read_csv("/Users/alexstephenson/Desktop/R_Studio_Work/Dissertation/Dissertation_R/competencies_analysis/competencies_analysis_diss/ira_tweets_csv_hashed.csv")
+
+tweets <- data %>% 
+  filter(tweet_language == "ru" | account_language == "ru") #filter for only Russian tweets
+
+rm(data)
+
+tweets <- tweets %>% 
+  select(-user_display_name, -user_profile_description, -user_profile_url, -user_reported_location, -account_creation_date, -longitude, -latitude, -poll_choices) #remove variables not used
+
+
+user_data_info <- read_csv("/Users/alexstephenson/Desktop/R_Studio_Work/Dissertation/Dissertation_R/ira_users_csv_hashed.csv") #data about accounts, not tweets
+
+user_data_info <- user_data_info %>% 
+  filter(account_language == "ru")
+
+
+
+### import stopwords lexicon
+
+english_stopwords <- get_stopwords("en")
+stopwords_ru <- read_delim("/Users/alexstephenson/Desktop/R_Studio_Work/Dissertation/Dissertation_R/stopwords-ru.txt", delim = ",", col_names  = F)
+names(stopwords_ru) <- c('word')
+stopwords_ru <- as_tibble(stopwords_ru)
+
+custom_stop_words <- bind_rows(tibble(word = c("https", "t.co", "rt", "amp", "все", "это", 'мной', 'почему', 'спасибо', 'просто', 'очень', "привет", "всё", "тебе", "вообще", "день", "думаю", "пока", "такое", "такие", "таких", "изза", "ещё", "знаю")),  
+                               stopwords_ru)
+extra_stop_words <- c('сам', 'хочет', 'наш')
+```
+
+#### Competency analysis
+
+These are the competency dictionaries provided by Guriev and Treisman (2019b)
+
+```{r}
+violence_dictionary<-c('мертвый','смерть','смертельный','случайный','умереть','умер','умирает','умирать','уничтожить','уничтожить','смертельный','похороны','холокост','убить','бойня','скорбеть','убить','война','войны','воюя','разбить','разгромить','маршруты','маршрутизация','забастовка','ударил','беспокоящий','конфликт','враждебное','оружие','пистолет','оружие','застрелен','битва','сражения','вооруженные','больно','ранит','вред','вредугнетать','уничтожать','разрушать','тюрьма','наказывать','порабощать','раб','добыча','кровь','кровоточить','кровоточить','мученик','мученики','мученики','армии','армия','боль','болезненные','боли','вторжение','вторжение','насилие','насильственный','взорваться','взрывается','бомба','раздавить','ранить','ранить','сражаться','преследовать','тиранизировать','уничтожить','перестрелка','солдат','завоевать','пушка','террор','терроризм','террорист','злодеяние','зверства','жестокие','жестокие','мучения','штык','старв','осада','сдача','разбить','вооружение','танки','артиллерия','миномет','броня','завоевание','военный','крестовыйпоход','преступник','преступление','арест','просекут','флот','враг','враги','вражда','пленник','бич','мутилат','гибель','опустошение','варвар','полиция','побеждение','жертва','заложник','пуля','оружие','мясник','гибель','войска','грабеж','ненависть','страдания','бригада','задержание','ликвидация','жестокоеобращение','тюремноезаключение','заключениеподстражу','заложники')
+
+```
+
+```{r}
+economic_dictionary<-c('доступный','аудитор','аудиторы','одолжить','купил','бюджет','купить','дешево','дешевле','валюта','клиент','долг','депозит','скидка','доллар','доллары','заработок','эконом','рецессия','аренда','розничнаяторговля','выручка','богаче','богатство','богатейший','салар','продажа','продажа','экономия','продажа','продажа','магазин','продажа','магазин','торговля','торговля','заработнаяплата','заработнаяплата','богатство','богаче','богатейших','богатых','обмен','расходы','дорого','финансы','фонд','доход','страхование','инвестирование','инвестиции','инвестирование','инвестирование','аренда','кредитование','кредитование','кредит','рынок','купец','деньги','монополия','ипотека','пенсия','песеты','бедность','цена','цены','прибыль','покупки','зарплата','акции','коммерция','рост','работа','работа','продукция','промышленность','отрасли','промышленность','индустриализация','индустриализация','производство','труд','труд','труд','труд','труд','работа','продукция','потребитель','фабрика','фабрики','remunerat','товары','занятые','безработица','инфляция','сельскоехозяйство','аграрныйсектор','тариф','рацион','нормирование','экспорт','импорт','импорт','импорт','выпуск','предприниматель','эффективность','проспэр','дефицит','сельскоехозяйство','выращивание')
+```
+
+
+```{r}
+social_dictionary<-c('расходы','медицинские','медицина','образование','жилье','школа','школы','университеты','университет','класснаякомната','уходзадетьми','больница','больницы','доктор','материнство','инфраструктура','грамотность','администрация','транспорт','выходнапенсию','финансирование','инвалид','доход','бюджет','сборы','фонд','страхование','пенсия')
+```
+
+
+```{r}
+competency_dictionary <- c(violence_dictionary, economic_dictionary, social_dictionary)
+competency_dictionary_or <- paste(competency_dictionary, collapse = "|") #add logical operators for analysis
+
+violence_dictionary_or <- paste(violence_dictionary, collapse = "|")
+economic_dictionary_or <- paste(economic_dictionary, collapse = "|")
+social_dictionary_or <- paste(social_dictionary, collapse = "|")
+```
+
+
+In this step I want to tokenise the data (break the tweets down into their individual words), identify which ones are from our themes and then plot their frequency over time.
+
+
+
+```{r}
+competency_tokens <- tweets %>%  
+  select(tweet_text, tweet_time) %>% 
+  mutate(tweet_text = tolower(tweet_text),
+         tweet_time = as.Date(tweet_time),
+         tweet_time = floor_date(tweet_time, "2 weeks")) %>% #tweets rounded to two week periods
+  unnest_tokens(tokens, tweet_text, token = "words") #unnested so one row per word
+  
+
+competency_tokens_filtered <- competency_tokens %>% 
+  add_count(tweet_time, name = 'obs') %>% 
+  filter(tokens %in% c(economic_dictionary, violence_dictionary, social_dictionary)) #keep only competency words
+  
+competency_tokens_filtered$theme[competency_tokens_filtered$tokens %in% economic_dictionary] <- 'Economic'
+competency_tokens_filtered$theme[competency_tokens_filtered$tokens %in% violence_dictionary] <- 'Violent'
+competency_tokens_filtered$theme[competency_tokens_filtered$tokens %in% social_dictionary] <- 'Social'
+
+
+competency_tokens_processed <- competency_tokens_filtered %>% 
+  mutate(theme = as.factor(theme)) %>% 
+  add_count(tweet_time, theme, name = 'n') %>% 
+  transmute(tweet_time, theme, percent = (n / obs * 100)) %>% 
+  filter(tweet_time > as.Date("2012-01-01") & tweet_time < as.Date("2017-06-01")) %>% 
+  distinct() #calculate frequency of tokens
+```
+
+
+Now time to graph the data:
+
+```{r}
+
+competency_tokens_graph <- competency_tokens_processed %>% 
+  ggplot(aes(tweet_time, percent, col = theme)) +
+  geom_line(alpha = 0.5) +
+  theme_solarized() +
+  scale_color_solarized() +
+  scale_x_date(breaks = scales::date_breaks(width = "1 year"),
+                   labels = scales::date_format(format = "%Y"),
+                   minor_breaks = "6 months") +
+  expand_limits(y = c(0, 1.5)) +
+  labs(title = "Frequency of 'competency' words as a % of all words",  x = "", y = 'Frequency of terms (%) in IRA tweets', color = "Competency")  +
+  theme(legend.position = "none")
+
+competency_tokens_graph <- competency_tokens_graph + 
+  theme(axis.title.y = element_text(size = 20),
+        plot.title = element_text(size = 25),
+        axis.text.x = element_text(size = 16),
+        axis.text.y = element_text(size = 16)) #graph formatting
+
+
+competency_tokens_graph
+
+```
+
+The next code chunk calculates not the percentage frequency of tokens but the frequency of tweets mentioning one competency word
+
+```{r}
+competency_tweets <- tweets %>%  
+  select(tweet_text, tweet_time) %>% 
+  mutate(tweet_text = tolower(tweet_text),
+         tweet_time = as.Date(tweet_time),
+         tweet_time = floor_date(tweet_time, "2 weeks"))
+
+violence_tweets_filtered <- competency_tweets %>% 
+  add_count(tweet_time, name = 'obs') %>% 
+  filter(str_detect(tweet_text, violence_dictionary_or)) %>% 
+  mutate(theme = "Violent")
+  
+economic_tweets_filtered <- competency_tweets %>% 
+  add_count(tweet_time, name = 'obs') %>% 
+  filter(str_detect(tweet_text, economic_dictionary_or)) %>% 
+  mutate(theme = "Economic")
+
+social_tweets_filtered <- competency_tweets %>% 
+  add_count(tweet_time, name = 'obs') %>% 
+  filter(str_detect(tweet_text, social_dictionary_or)) %>% 
+  mutate(theme = "Social")
+
+competency_tweets_filtered <- rbind(violence_tweets_filtered, economic_tweets_filtered, social_tweets_filtered)
+
+competency_tweets_processed <- competency_tweets_filtered %>% 
+  filter(tweet_time > as.Date("2012-01-01") & tweet_time < as.Date("2017-06-01")) %>% 
+  mutate(theme = as.factor(theme)) %>% 
+  add_count(tweet_time, theme, name = 'n') %>% 
+  transmute(tweet_time, theme, percent = (n / obs * 100)) %>% 
+  #filter(percent < 3) %>% #removing the last week in 2009 where there were only a few tweets
+  distinct()
+
+competency_tweets_graph <- competency_tweets_processed %>% 
+  ggplot(aes(tweet_time, percent, col = theme)) +
+  geom_line(alpha = 0.5) +
+  #scale_color_brewer(palette = "Paired", direction = -2) +
+  theme_solarized() +
+  scale_color_solarized() +
+  scale_x_date(breaks = scales::date_breaks(width = "1 year"),
+                   labels = scales::date_format(format = "%Y")) +
+                   #minor_breaks = "6 months") +
+  #expand_limits(y = c(0, 2)) +
+  labs(title = "IRA tweets mentioning at least one 'Competency' key words",  x = "", y = "Frequency of terms (%)", color = "Competency")
+
+
+competency_tweets_graph <- competency_tweets_graph + 
+  theme(axis.title.y = element_text(size = 22),
+        axis.text.x = element_text(size = 16),
+        axis.text.y = element_text(size = 16),
+        plot.title = element_text(size = 25))
+
+
+competency_tweets_graph
+
+```
+
+
+Graph objects
+
+```{r fig.height=6}
+#patchwork <- competency_tokens_graph / competency_tweets_graph + plot_layout(guides = "collect")
+#patchwork +
+#  plot_annotation(
+#    title = "Competency Topic Frequencies",
+#    theme = theme_solarized(base_size = 30)
+#  ) +
+#  theme(legend.text = element_text(size = 20),
+#        legend.title = element_text(size = 26),
+#      legend.key = element_rect(ggthemes_data$solarized$Base$name['base3']),
+#      legend.key.size = unit(4, "lines"),
+#      axis.title.y = element_text(size = 20)) #formatting
+      
+      
+
+
+```
+
+
+Out of interest, we can also begin to compare which theme of tweets were more successful on social media. Again, we need to filter for each theme and then extract the meta data. 
+
+```{r}
+economic_token_freq <- competency_tokens_filtered %>% 
+  filter(theme == 'Economic') %>% 
+  summarise(token_pcnt = nrow(.) / nrow(competency_tokens) * 100) #shoudnt this be competency_tweets?
+
+social_token_freq <- competency_tokens_filtered %>% 
+  filter(theme == 'Social') %>% 
+  summarise(token_pcnt = nrow(.) / nrow(competency_tokens) * 100)
+
+violent_token_freq <- competency_tokens_filtered %>% 
+  filter(theme == 'Violent') %>% 
+  summarise(token_pcnt = nrow(.) / nrow(competency_tokens) * 100)
+
+#violent tweets
+
+violent_tweets_info <- tweets %>%
+  mutate(rows = nrow(.)) %>% 
+  mutate(tweet_text = tolower(tweet_text)) %>%  
+  filter(str_detect(tweet_text, paste(violence_dictionary, collapse = '|'))) %>%
+  mutate(pcnt_total = nrow(.) / rows * 100)
+
+violent_tweets_summary <- violent_tweets_info %>% 
+  summarise(Topic = 'Violent Tweets',
+             `% of tweets using competency words` = economic_token_freq$token_pcnt,
+              `Competence words as a % of all words` = mean(pcnt_total),
+            `Mean replies per Tweet` = mean(reply_count, na.rm = T),
+            `Max Reply` = max(reply_count, na.rm = T),
+            `Mean Retweets per Tweet` = mean(retweet_count, na.rm = T),
+            `Max Retweets` = max(retweet_count, na.rm = T))
+
+
+#social tweets
+
+social_tweets_info <- tweets %>%
+  mutate(rows = nrow(.)) %>% 
+  mutate(tweet_text = tolower(tweet_text)) %>%  
+  filter(str_detect(tweet_text, paste(social_dictionary, collapse = '|'))) %>%
+  mutate(pcnt_total = nrow(.) / rows * 100) 
+
+social_tweets_summary <- social_tweets_info %>% 
+    summarise(Topic = 'Social Tweets',
+              `% of tweets using competency words` = economic_token_freq$token_pcnt,
+              `Competence words as a % of all words` = mean(pcnt_total),
+            `Mean replies per Tweet` = mean(reply_count, na.rm = T),
+            `Max Reply` = max(reply_count, na.rm = T),
+            `Mean Retweets per Tweet` = mean(retweet_count, na.rm = T),
+            `Max Retweets` = max(retweet_count, na.rm = T))
+
+
+#economic tweets
+
+economic_tweets_info <- tweets%>%
+    mutate(rows = nrow(.)) %>% 
+    mutate(tweet_text = tolower(tweet_text)) %>%  
+    filter(str_detect(tweet_text, paste(economic_dictionary, collapse = '|'))) %>%
+    mutate(pcnt_total = nrow(.) / rows * 100)
+
+economic_tweets_summary <- economic_tweets_info %>% 
+    summarise(Topic = 'Economic Tweets', 
+              `% of tweets using competency words` = economic_token_freq$token_pcnt,
+             `Competence words as a % of all words` = mean(pcnt_total),
+            `Mean replies per Tweet` = mean(reply_count, na.rm = T),
+            `Max Reply` = max(reply_count, na.rm = T),
+            `Mean Retweets per Tweet` = mean(retweet_count, na.rm = T),
+            `Max Retweets` = max(retweet_count, na.rm = T))
+
+
+gt_competency_summaries <- rbind(economic_tweets_summary, social_tweets_summary, violent_tweets_summary) %>% 
+  gt(rowname_col = "Topic") %>% 
+  tab_header(
+    title = "Analysis of Competency Tweets",
+    subtitle = "Comparing metadata statistics between the 'competency topics' of Informational Autocracy"
+  )  %>% 
+  tab_footnote(
+    footnote = md('_Guriev and Treisman (2019a, 2019b)_'),
+    locations = cells_title(groups = c("subtitle"))
+  )
+
+gt_competency_summaries
+
+```
+
+

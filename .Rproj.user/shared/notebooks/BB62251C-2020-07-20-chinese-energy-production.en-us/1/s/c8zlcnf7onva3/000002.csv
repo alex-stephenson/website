@@ -1,0 +1,5 @@
+"0","data <- read_csv('Global_elec_review_2020_China.csv')
+"
+"2","Error in read_csv(""Global_elec_review_2020_China.csv"") : 
+  could not find function ""read_csv""
+"

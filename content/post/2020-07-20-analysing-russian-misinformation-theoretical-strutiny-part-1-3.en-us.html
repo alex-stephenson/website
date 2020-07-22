@@ -1,0 +1,669 @@
+---
+title: 'Analysing Russian Misinformation: Theoretical Strutiny (Part 1/3)'
+author: Alex Stephenson
+date: '2020-07-20'
+slug: analysing-russian-misinformation-theoretical-strutiny-part-1-3.en-us
+categories: []
+tags: []
+keywords:
+  - tech
+---
+
+
+
+<p>As part of my dissertation I used network analysis and machine learning to analyse Russian misinformation on Twitter. I have split the research into three blog posts. This is the first one, where I examine currently theories of modern autocracy, specifically ‘Informational Autocracy’, by Guriev and Treisman.</p>
+<!--more-->
+<p>Informational Autocracy aims to explain ‘how the new dictators survive without using the standard tools of twentieth-century authoritarianism?’ (2019b: 101)’. Guriev and Treisman argue that</p>
+<blockquote>
+<p>Instead of isolating their countries, imposing ideologies, or terrorizing citizens, such leaders achieve many of the same ends by manipulating public opinion. With the help of censored or co-opted media, they persuade citizens that they are competent and benevolent, their legitimacy rests on popularity rather than fear (emphasis added) (2019a: 1)</p>
+</blockquote>
+<p>Guriev and Treisman, however, fail to address whether autocrats also take this approach to their online campaigns. As these often covert online efforts become an increasingly important tool in autocratic survival it seems remiss of the authors to have not considered this. This blog post aims to test Guriev and Treisman’s claims by examining six million tweets, authored by the Kremlin’s ‘Internet Research Agency’, to see whether they promote an image of competency through the promotion of economic and social trends, and the expense of violent ones.</p>
+<p>In order to understand whether these competency topics are being prioritised we need to start doing some text mining. Firstly, lets import packages and the data
+As Figure 1 shows, for the majority of the time analysed we see violent tweets making up a greater proportion of tweets than economic or social tweets, with the trend becoming even more pronounced after 2015. Furthermore, whilst Guriev and Treisman analyse autocratic speeches (2019b: 116) and find that roughly one in every forty words was economically focused, only one in every 500 words (0.17%) were economically focused when analysing their online content. In addition, one in every 350 (0.28%) words were violent and one in every 2000 (0.05%) words were social (Table 1).</p>
+<pre class="r"><code>library(gt) #for making tables
+library(tidyverse) 
+library(lubridate) #dates
+library(tidytext) #text analysis
+library(stm) #stm
+library(ggthemes) #for ggplot2 themes
+library(patchwork) #for patching together plots 
+library(tidystm) #STM eval but tidy
+library(igraph) #network analysis
+library(ggraph) #network analysis 
+library(tidygraph) #more network analysis but tidy so can wrangle graphs
+library(SnowballC) #stemming words
+library(furrr) #in order to implement tidy parallel processing
+plan(multiprocess) #engage multiple cores</code></pre>
+<pre class="r"><code>data &lt;- read_csv(&quot;/Users/alexstephenson/Desktop/R_Studio_Work/Dissertation/Dissertation_R/competencies_analysis/competencies_analysis_diss/ira_tweets_csv_hashed.csv&quot;)
+
+tweets &lt;- data %&gt;% 
+  filter(tweet_language == &quot;ru&quot; | account_language == &quot;ru&quot;) #filter for only Russian tweets
+
+rm(data)
+
+tweets &lt;- tweets %&gt;% 
+  select(-user_display_name, -user_profile_description, -user_profile_url, -user_reported_location, -account_creation_date, -longitude, -latitude, -poll_choices) #remove variables not used
+
+
+user_data_info &lt;- read_csv(&quot;/Users/alexstephenson/Desktop/R_Studio_Work/Dissertation/Dissertation_R/ira_users_csv_hashed.csv&quot;) #data about accounts, not tweets
+
+user_data_info &lt;- user_data_info %&gt;% 
+  filter(account_language == &quot;ru&quot;)
+
+
+
+### import stopwords lexicon
+
+english_stopwords &lt;- get_stopwords(&quot;en&quot;)
+stopwords_ru &lt;- read_delim(&quot;/Users/alexstephenson/Desktop/R_Studio_Work/Dissertation/Dissertation_R/stopwords-ru.txt&quot;, delim = &quot;,&quot;, col_names  = F)
+names(stopwords_ru) &lt;- c(&#39;word&#39;)
+stopwords_ru &lt;- as_tibble(stopwords_ru)
+
+custom_stop_words &lt;- bind_rows(tibble(word = c(&quot;https&quot;, &quot;t.co&quot;, &quot;rt&quot;, &quot;amp&quot;, &quot;все&quot;, &quot;это&quot;, &#39;мной&#39;, &#39;почему&#39;, &#39;спасибо&#39;, &#39;просто&#39;, &#39;очень&#39;, &quot;привет&quot;, &quot;всё&quot;, &quot;тебе&quot;, &quot;вообще&quot;, &quot;день&quot;, &quot;думаю&quot;, &quot;пока&quot;, &quot;такое&quot;, &quot;такие&quot;, &quot;таких&quot;, &quot;изза&quot;, &quot;ещё&quot;, &quot;знаю&quot;)),  
+                               stopwords_ru)
+extra_stop_words &lt;- c(&#39;сам&#39;, &#39;хочет&#39;, &#39;наш&#39;)</code></pre>
+<div id="competency-analysis" class="section level4">
+<h4>Competency analysis</h4>
+<p>These are the competency dictionaries provided by Guriev and Treisman (2019b)</p>
+<pre class="r"><code>violence_dictionary&lt;-c(&#39;мертвый&#39;,&#39;смерть&#39;,&#39;смертельный&#39;,&#39;случайный&#39;,&#39;умереть&#39;,&#39;умер&#39;,&#39;умирает&#39;,&#39;умирать&#39;,&#39;уничтожить&#39;,&#39;уничтожить&#39;,&#39;смертельный&#39;,&#39;похороны&#39;,&#39;холокост&#39;,&#39;убить&#39;,&#39;бойня&#39;,&#39;скорбеть&#39;,&#39;убить&#39;,&#39;война&#39;,&#39;войны&#39;,&#39;воюя&#39;,&#39;разбить&#39;,&#39;разгромить&#39;,&#39;маршруты&#39;,&#39;маршрутизация&#39;,&#39;забастовка&#39;,&#39;ударил&#39;,&#39;беспокоящий&#39;,&#39;конфликт&#39;,&#39;враждебное&#39;,&#39;оружие&#39;,&#39;пистолет&#39;,&#39;оружие&#39;,&#39;застрелен&#39;,&#39;битва&#39;,&#39;сражения&#39;,&#39;вооруженные&#39;,&#39;больно&#39;,&#39;ранит&#39;,&#39;вред&#39;,&#39;вредугнетать&#39;,&#39;уничтожать&#39;,&#39;разрушать&#39;,&#39;тюрьма&#39;,&#39;наказывать&#39;,&#39;порабощать&#39;,&#39;раб&#39;,&#39;добыча&#39;,&#39;кровь&#39;,&#39;кровоточить&#39;,&#39;кровоточить&#39;,&#39;мученик&#39;,&#39;мученики&#39;,&#39;мученики&#39;,&#39;армии&#39;,&#39;армия&#39;,&#39;боль&#39;,&#39;болезненные&#39;,&#39;боли&#39;,&#39;вторжение&#39;,&#39;вторжение&#39;,&#39;насилие&#39;,&#39;насильственный&#39;,&#39;взорваться&#39;,&#39;взрывается&#39;,&#39;бомба&#39;,&#39;раздавить&#39;,&#39;ранить&#39;,&#39;ранить&#39;,&#39;сражаться&#39;,&#39;преследовать&#39;,&#39;тиранизировать&#39;,&#39;уничтожить&#39;,&#39;перестрелка&#39;,&#39;солдат&#39;,&#39;завоевать&#39;,&#39;пушка&#39;,&#39;террор&#39;,&#39;терроризм&#39;,&#39;террорист&#39;,&#39;злодеяние&#39;,&#39;зверства&#39;,&#39;жестокие&#39;,&#39;жестокие&#39;,&#39;мучения&#39;,&#39;штык&#39;,&#39;старв&#39;,&#39;осада&#39;,&#39;сдача&#39;,&#39;разбить&#39;,&#39;вооружение&#39;,&#39;танки&#39;,&#39;артиллерия&#39;,&#39;миномет&#39;,&#39;броня&#39;,&#39;завоевание&#39;,&#39;военный&#39;,&#39;крестовыйпоход&#39;,&#39;преступник&#39;,&#39;преступление&#39;,&#39;арест&#39;,&#39;просекут&#39;,&#39;флот&#39;,&#39;враг&#39;,&#39;враги&#39;,&#39;вражда&#39;,&#39;пленник&#39;,&#39;бич&#39;,&#39;мутилат&#39;,&#39;гибель&#39;,&#39;опустошение&#39;,&#39;варвар&#39;,&#39;полиция&#39;,&#39;побеждение&#39;,&#39;жертва&#39;,&#39;заложник&#39;,&#39;пуля&#39;,&#39;оружие&#39;,&#39;мясник&#39;,&#39;гибель&#39;,&#39;войска&#39;,&#39;грабеж&#39;,&#39;ненависть&#39;,&#39;страдания&#39;,&#39;бригада&#39;,&#39;задержание&#39;,&#39;ликвидация&#39;,&#39;жестокоеобращение&#39;,&#39;тюремноезаключение&#39;,&#39;заключениеподстражу&#39;,&#39;заложники&#39;)</code></pre>
+<pre class="r"><code>economic_dictionary&lt;-c(&#39;доступный&#39;,&#39;аудитор&#39;,&#39;аудиторы&#39;,&#39;одолжить&#39;,&#39;купил&#39;,&#39;бюджет&#39;,&#39;купить&#39;,&#39;дешево&#39;,&#39;дешевле&#39;,&#39;валюта&#39;,&#39;клиент&#39;,&#39;долг&#39;,&#39;депозит&#39;,&#39;скидка&#39;,&#39;доллар&#39;,&#39;доллары&#39;,&#39;заработок&#39;,&#39;эконом&#39;,&#39;рецессия&#39;,&#39;аренда&#39;,&#39;розничнаяторговля&#39;,&#39;выручка&#39;,&#39;богаче&#39;,&#39;богатство&#39;,&#39;богатейший&#39;,&#39;салар&#39;,&#39;продажа&#39;,&#39;продажа&#39;,&#39;экономия&#39;,&#39;продажа&#39;,&#39;продажа&#39;,&#39;магазин&#39;,&#39;продажа&#39;,&#39;магазин&#39;,&#39;торговля&#39;,&#39;торговля&#39;,&#39;заработнаяплата&#39;,&#39;заработнаяплата&#39;,&#39;богатство&#39;,&#39;богаче&#39;,&#39;богатейших&#39;,&#39;богатых&#39;,&#39;обмен&#39;,&#39;расходы&#39;,&#39;дорого&#39;,&#39;финансы&#39;,&#39;фонд&#39;,&#39;доход&#39;,&#39;страхование&#39;,&#39;инвестирование&#39;,&#39;инвестиции&#39;,&#39;инвестирование&#39;,&#39;инвестирование&#39;,&#39;аренда&#39;,&#39;кредитование&#39;,&#39;кредитование&#39;,&#39;кредит&#39;,&#39;рынок&#39;,&#39;купец&#39;,&#39;деньги&#39;,&#39;монополия&#39;,&#39;ипотека&#39;,&#39;пенсия&#39;,&#39;песеты&#39;,&#39;бедность&#39;,&#39;цена&#39;,&#39;цены&#39;,&#39;прибыль&#39;,&#39;покупки&#39;,&#39;зарплата&#39;,&#39;акции&#39;,&#39;коммерция&#39;,&#39;рост&#39;,&#39;работа&#39;,&#39;работа&#39;,&#39;продукция&#39;,&#39;промышленность&#39;,&#39;отрасли&#39;,&#39;промышленность&#39;,&#39;индустриализация&#39;,&#39;индустриализация&#39;,&#39;производство&#39;,&#39;труд&#39;,&#39;труд&#39;,&#39;труд&#39;,&#39;труд&#39;,&#39;труд&#39;,&#39;работа&#39;,&#39;продукция&#39;,&#39;потребитель&#39;,&#39;фабрика&#39;,&#39;фабрики&#39;,&#39;remunerat&#39;,&#39;товары&#39;,&#39;занятые&#39;,&#39;безработица&#39;,&#39;инфляция&#39;,&#39;сельскоехозяйство&#39;,&#39;аграрныйсектор&#39;,&#39;тариф&#39;,&#39;рацион&#39;,&#39;нормирование&#39;,&#39;экспорт&#39;,&#39;импорт&#39;,&#39;импорт&#39;,&#39;импорт&#39;,&#39;выпуск&#39;,&#39;предприниматель&#39;,&#39;эффективность&#39;,&#39;проспэр&#39;,&#39;дефицит&#39;,&#39;сельскоехозяйство&#39;,&#39;выращивание&#39;)</code></pre>
+<pre class="r"><code>social_dictionary&lt;-c(&#39;расходы&#39;,&#39;медицинские&#39;,&#39;медицина&#39;,&#39;образование&#39;,&#39;жилье&#39;,&#39;школа&#39;,&#39;школы&#39;,&#39;университеты&#39;,&#39;университет&#39;,&#39;класснаякомната&#39;,&#39;уходзадетьми&#39;,&#39;больница&#39;,&#39;больницы&#39;,&#39;доктор&#39;,&#39;материнство&#39;,&#39;инфраструктура&#39;,&#39;грамотность&#39;,&#39;администрация&#39;,&#39;транспорт&#39;,&#39;выходнапенсию&#39;,&#39;финансирование&#39;,&#39;инвалид&#39;,&#39;доход&#39;,&#39;бюджет&#39;,&#39;сборы&#39;,&#39;фонд&#39;,&#39;страхование&#39;,&#39;пенсия&#39;)</code></pre>
+<pre class="r"><code>competency_dictionary &lt;- c(violence_dictionary, economic_dictionary, social_dictionary)
+competency_dictionary_or &lt;- paste(competency_dictionary, collapse = &quot;|&quot;) #add logical operators for analysis
+
+violence_dictionary_or &lt;- paste(violence_dictionary, collapse = &quot;|&quot;)
+economic_dictionary_or &lt;- paste(economic_dictionary, collapse = &quot;|&quot;)
+social_dictionary_or &lt;- paste(social_dictionary, collapse = &quot;|&quot;)</code></pre>
+<p>In this step I want to tokenise the data (break the tweets down into their individual words), identify which ones are from our themes and then plot their frequency over time.</p>
+<pre class="r"><code>competency_tokens &lt;- tweets %&gt;%  
+  select(tweet_text, tweet_time) %&gt;% 
+  mutate(tweet_text = tolower(tweet_text),
+         tweet_time = as.Date(tweet_time),
+         tweet_time = floor_date(tweet_time, &quot;2 weeks&quot;)) %&gt;% #tweets rounded to two week periods
+  unnest_tokens(tokens, tweet_text, token = &quot;words&quot;) #unnested so one row per word</code></pre>
+<pre><code>## Warning in floor_date(tweet_time, &quot;2 weeks&quot;): Multi-unit not supported for
+## weeks. Ignoring.</code></pre>
+<pre class="r"><code>competency_tokens_filtered &lt;- competency_tokens %&gt;% 
+  add_count(tweet_time, name = &#39;obs&#39;) %&gt;% 
+  filter(tokens %in% c(economic_dictionary, violence_dictionary, social_dictionary)) #keep only competency words
+  
+competency_tokens_filtered$theme[competency_tokens_filtered$tokens %in% economic_dictionary] &lt;- &#39;Economic&#39;</code></pre>
+<pre><code>## Warning: Unknown or uninitialised column: `theme`.</code></pre>
+<pre class="r"><code>competency_tokens_filtered$theme[competency_tokens_filtered$tokens %in% violence_dictionary] &lt;- &#39;Violent&#39;
+competency_tokens_filtered$theme[competency_tokens_filtered$tokens %in% social_dictionary] &lt;- &#39;Social&#39;
+
+
+competency_tokens_processed &lt;- competency_tokens_filtered %&gt;% 
+  mutate(theme = as.factor(theme)) %&gt;% 
+  add_count(tweet_time, theme, name = &#39;n&#39;) %&gt;% 
+  transmute(tweet_time, theme, percent = (n / obs * 100)) %&gt;% 
+  filter(tweet_time &gt; as.Date(&quot;2012-01-01&quot;) &amp; tweet_time &lt; as.Date(&quot;2017-06-01&quot;)) %&gt;% 
+  distinct() #calculate frequency of tokens</code></pre>
+<p>Now time to graph the data:</p>
+<pre class="r"><code>competency_tokens_graph &lt;- competency_tokens_processed %&gt;% 
+  ggplot(aes(tweet_time, percent, col = theme)) +
+  geom_line(alpha = 0.5) +
+  theme_solarized() +
+  scale_color_solarized() +
+  scale_x_date(breaks = scales::date_breaks(width = &quot;1 year&quot;),
+                   labels = scales::date_format(format = &quot;%Y&quot;),
+                   minor_breaks = &quot;6 months&quot;) +
+  expand_limits(y = c(0, 1.5)) +
+  labs(title = &quot;Frequency of &#39;competency&#39; words as a % of all words&quot;,  x = &quot;&quot;, y = &#39;Frequency of terms (%) in IRA tweets&#39;, color = &quot;Competency&quot;)  +
+  theme(legend.position = &quot;none&quot;)
+
+competency_tokens_graph &lt;- competency_tokens_graph + 
+  theme(axis.title.y = element_text(size = 20),
+        plot.title = element_text(size = 25),
+        axis.text.x = element_text(size = 16),
+        axis.text.y = element_text(size = 16)) #graph formatting
+
+
+competency_tokens_graph</code></pre>
+<p><img src="/post/2020-07-20-analysing-russian-misinformation-theoretical-strutiny-part-1-3.en-us_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+<p>The next code chunk calculates not the percentage frequency of tokens but the frequency of tweets mentioning one competency word</p>
+<pre class="r"><code>competency_tweets &lt;- tweets %&gt;%  
+  select(tweet_text, tweet_time) %&gt;% 
+  mutate(tweet_text = tolower(tweet_text),
+         tweet_time = as.Date(tweet_time),
+         tweet_time = floor_date(tweet_time, &quot;2 weeks&quot;))</code></pre>
+<pre><code>## Warning in floor_date(tweet_time, &quot;2 weeks&quot;): Multi-unit not supported for
+## weeks. Ignoring.</code></pre>
+<pre class="r"><code>violence_tweets_filtered &lt;- competency_tweets %&gt;% 
+  add_count(tweet_time, name = &#39;obs&#39;) %&gt;% 
+  filter(str_detect(tweet_text, violence_dictionary_or)) %&gt;% 
+  mutate(theme = &quot;Violent&quot;)
+  
+economic_tweets_filtered &lt;- competency_tweets %&gt;% 
+  add_count(tweet_time, name = &#39;obs&#39;) %&gt;% 
+  filter(str_detect(tweet_text, economic_dictionary_or)) %&gt;% 
+  mutate(theme = &quot;Economic&quot;)
+
+social_tweets_filtered &lt;- competency_tweets %&gt;% 
+  add_count(tweet_time, name = &#39;obs&#39;) %&gt;% 
+  filter(str_detect(tweet_text, social_dictionary_or)) %&gt;% 
+  mutate(theme = &quot;Social&quot;)
+
+competency_tweets_filtered &lt;- rbind(violence_tweets_filtered, economic_tweets_filtered, social_tweets_filtered)
+
+competency_tweets_processed &lt;- competency_tweets_filtered %&gt;% 
+  filter(tweet_time &gt; as.Date(&quot;2012-01-01&quot;) &amp; tweet_time &lt; as.Date(&quot;2017-06-01&quot;)) %&gt;% 
+  mutate(theme = as.factor(theme)) %&gt;% 
+  add_count(tweet_time, theme, name = &#39;n&#39;) %&gt;% 
+  transmute(tweet_time, theme, percent = (n / obs * 100)) %&gt;% 
+  #filter(percent &lt; 3) %&gt;% #removing the last week in 2009 where there were only a few tweets
+  distinct()
+
+competency_tweets_graph &lt;- competency_tweets_processed %&gt;% 
+  ggplot(aes(tweet_time, percent, col = theme)) +
+  geom_line(alpha = 0.5) +
+  #scale_color_brewer(palette = &quot;Paired&quot;, direction = -2) +
+  theme_solarized() +
+  scale_color_solarized() +
+  scale_x_date(breaks = scales::date_breaks(width = &quot;1 year&quot;),
+                   labels = scales::date_format(format = &quot;%Y&quot;)) +
+                   #minor_breaks = &quot;6 months&quot;) +
+  #expand_limits(y = c(0, 2)) +
+  labs(title = &quot;IRA tweets mentioning at least one &#39;Competency&#39; key words&quot;,  x = &quot;&quot;, y = &quot;Frequency of terms (%)&quot;, color = &quot;Competency&quot;)
+
+
+competency_tweets_graph &lt;- competency_tweets_graph + 
+  theme(axis.title.y = element_text(size = 22),
+        axis.text.x = element_text(size = 16),
+        axis.text.y = element_text(size = 16),
+        plot.title = element_text(size = 25))
+
+
+competency_tweets_graph</code></pre>
+<p><img src="/post/2020-07-20-analysing-russian-misinformation-theoretical-strutiny-part-1-3.en-us_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p>Graph objects</p>
+<pre class="r"><code>#patchwork &lt;- competency_tokens_graph / competency_tweets_graph + plot_layout(guides = &quot;collect&quot;)
+#patchwork +
+#  plot_annotation(
+#    title = &quot;Competency Topic Frequencies&quot;,
+#    theme = theme_solarized(base_size = 30)
+#  ) +
+#  theme(legend.text = element_text(size = 20),
+#        legend.title = element_text(size = 26),
+#      legend.key = element_rect(ggthemes_data$solarized$Base$name[&#39;base3&#39;]),
+#      legend.key.size = unit(4, &quot;lines&quot;),
+#      axis.title.y = element_text(size = 20)) #formatting</code></pre>
+<p>Out of interest, we can also begin to compare which theme of tweets were more successful on social media. Again, we need to filter for each theme and then extract the meta data.</p>
+<pre class="r"><code>economic_token_freq &lt;- competency_tokens_filtered %&gt;% 
+  filter(theme == &#39;Economic&#39;) %&gt;% 
+  summarise(token_pcnt = nrow(.) / nrow(competency_tokens) * 100) #shoudnt this be competency_tweets?
+
+social_token_freq &lt;- competency_tokens_filtered %&gt;% 
+  filter(theme == &#39;Social&#39;) %&gt;% 
+  summarise(token_pcnt = nrow(.) / nrow(competency_tokens) * 100)
+
+violent_token_freq &lt;- competency_tokens_filtered %&gt;% 
+  filter(theme == &#39;Violent&#39;) %&gt;% 
+  summarise(token_pcnt = nrow(.) / nrow(competency_tokens) * 100)
+
+#violent tweets
+
+violent_tweets_info &lt;- tweets %&gt;%
+  mutate(rows = nrow(.)) %&gt;% 
+  mutate(tweet_text = tolower(tweet_text)) %&gt;%  
+  filter(str_detect(tweet_text, paste(violence_dictionary, collapse = &#39;|&#39;))) %&gt;%
+  mutate(pcnt_total = nrow(.) / rows * 100)
+
+violent_tweets_summary &lt;- violent_tweets_info %&gt;% 
+  summarise(Topic = &#39;Violent Tweets&#39;,
+             `% of tweets using competency words` = economic_token_freq$token_pcnt,
+              `Competence words as a % of all words` = mean(pcnt_total),
+            `Mean replies per Tweet` = mean(reply_count, na.rm = T),
+            `Max Reply` = max(reply_count, na.rm = T),
+            `Mean Retweets per Tweet` = mean(retweet_count, na.rm = T),
+            `Max Retweets` = max(retweet_count, na.rm = T))
+
+
+#social tweets
+
+social_tweets_info &lt;- tweets %&gt;%
+  mutate(rows = nrow(.)) %&gt;% 
+  mutate(tweet_text = tolower(tweet_text)) %&gt;%  
+  filter(str_detect(tweet_text, paste(social_dictionary, collapse = &#39;|&#39;))) %&gt;%
+  mutate(pcnt_total = nrow(.) / rows * 100) 
+
+social_tweets_summary &lt;- social_tweets_info %&gt;% 
+    summarise(Topic = &#39;Social Tweets&#39;,
+              `% of tweets using competency words` = economic_token_freq$token_pcnt,
+              `Competence words as a % of all words` = mean(pcnt_total),
+            `Mean replies per Tweet` = mean(reply_count, na.rm = T),
+            `Max Reply` = max(reply_count, na.rm = T),
+            `Mean Retweets per Tweet` = mean(retweet_count, na.rm = T),
+            `Max Retweets` = max(retweet_count, na.rm = T))
+
+
+#economic tweets
+
+economic_tweets_info &lt;- tweets%&gt;%
+    mutate(rows = nrow(.)) %&gt;% 
+    mutate(tweet_text = tolower(tweet_text)) %&gt;%  
+    filter(str_detect(tweet_text, paste(economic_dictionary, collapse = &#39;|&#39;))) %&gt;%
+    mutate(pcnt_total = nrow(.) / rows * 100)
+
+economic_tweets_summary &lt;- economic_tweets_info %&gt;% 
+    summarise(Topic = &#39;Economic Tweets&#39;, 
+              `% of tweets using competency words` = economic_token_freq$token_pcnt,
+             `Competence words as a % of all words` = mean(pcnt_total),
+            `Mean replies per Tweet` = mean(reply_count, na.rm = T),
+            `Max Reply` = max(reply_count, na.rm = T),
+            `Mean Retweets per Tweet` = mean(retweet_count, na.rm = T),
+            `Max Retweets` = max(retweet_count, na.rm = T))
+
+
+gt_competency_summaries &lt;- rbind(economic_tweets_summary, social_tweets_summary, violent_tweets_summary) %&gt;% 
+  gt(rowname_col = &quot;Topic&quot;) %&gt;% 
+  tab_header(
+    title = &quot;Analysis of Competency Tweets&quot;,
+    subtitle = &quot;Comparing metadata statistics between the &#39;competency topics&#39; of Informational Autocracy&quot;
+  )  %&gt;% 
+  tab_footnote(
+    footnote = md(&#39;_Guriev and Treisman (2019a, 2019b)_&#39;),
+    locations = cells_title(groups = c(&quot;subtitle&quot;))
+  )
+
+gt_competency_summaries</code></pre>
+<style>html {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', 'Fira Sans', 'Droid Sans', Arial, sans-serif;
+}
+
+#cqpqwqagrn .gt_table {
+  display: table;
+  border-collapse: collapse;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#cqpqwqagrn .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#cqpqwqagrn .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#cqpqwqagrn .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 0;
+  padding-bottom: 4px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#cqpqwqagrn .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#cqpqwqagrn .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#cqpqwqagrn .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#cqpqwqagrn .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#cqpqwqagrn .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#cqpqwqagrn .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#cqpqwqagrn .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#cqpqwqagrn .gt_group_heading {
+  padding: 8px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#cqpqwqagrn .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#cqpqwqagrn .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#cqpqwqagrn .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#cqpqwqagrn .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#cqpqwqagrn .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#cqpqwqagrn .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 12px;
+}
+
+#cqpqwqagrn .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#cqpqwqagrn .gt_first_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+}
+
+#cqpqwqagrn .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#cqpqwqagrn .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#cqpqwqagrn .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#cqpqwqagrn .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#cqpqwqagrn .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding: 4px;
+}
+
+#cqpqwqagrn .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#cqpqwqagrn .gt_sourcenote {
+  font-size: 90%;
+  padding: 4px;
+}
+
+#cqpqwqagrn .gt_left {
+  text-align: left;
+}
+
+#cqpqwqagrn .gt_center {
+  text-align: center;
+}
+
+#cqpqwqagrn .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#cqpqwqagrn .gt_font_normal {
+  font-weight: normal;
+}
+
+#cqpqwqagrn .gt_font_bold {
+  font-weight: bold;
+}
+
+#cqpqwqagrn .gt_font_italic {
+  font-style: italic;
+}
+
+#cqpqwqagrn .gt_super {
+  font-size: 65%;
+}
+
+#cqpqwqagrn .gt_footnote_marks {
+  font-style: italic;
+  font-size: 65%;
+}
+</style>
+<div id="cqpqwqagrn" style="overflow-x:auto;overflow-y:auto;width:auto;height:auto;"><table class="gt_table">
+  <thead class="gt_header">
+    <tr>
+      <th colspan="7" class="gt_heading gt_title gt_font_normal" style>Analysis of Competency Tweets</th>
+    </tr>
+    <tr>
+      <th colspan="7" class="gt_heading gt_subtitle gt_font_normal gt_bottom_border" style>Comparing metadata statistics between the 'competency topics' of Informational Autocracy<sup class="gt_footnote_marks">1</sup></th>
+    </tr>
+  </thead>
+  <thead class="gt_col_headings">
+    <tr>
+      <th class="gt_col_heading gt_columns_bottom_border gt_left" rowspan="1" colspan="1"></th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">% of tweets using competency words</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">Competence words as a % of all words</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">Mean replies per Tweet</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">Max Reply</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">Mean Retweets per Tweet</th>
+      <th class="gt_col_heading gt_columns_bottom_border gt_right" rowspan="1" colspan="1">Max Retweets</th>
+    </tr>
+  </thead>
+  <tbody class="gt_table_body">
+    <tr>
+      <td class="gt_row gt_left gt_stub">Economic Tweets</td>
+      <td class="gt_row gt_right">0.16</td>
+      <td class="gt_row gt_right">7.9</td>
+      <td class="gt_row gt_right">0.15</td>
+      <td class="gt_row gt_right">259</td>
+      <td class="gt_row gt_right">1.7</td>
+      <td class="gt_row gt_right">5143</td>
+    </tr>
+    <tr>
+      <td class="gt_row gt_left gt_stub">Social Tweets</td>
+      <td class="gt_row gt_right">0.16</td>
+      <td class="gt_row gt_right">1.4</td>
+      <td class="gt_row gt_right">0.10</td>
+      <td class="gt_row gt_right">106</td>
+      <td class="gt_row gt_right">1.5</td>
+      <td class="gt_row gt_right">1421</td>
+    </tr>
+    <tr>
+      <td class="gt_row gt_left gt_stub">Violent Tweets</td>
+      <td class="gt_row gt_right">0.16</td>
+      <td class="gt_row gt_right">10.3</td>
+      <td class="gt_row gt_right">0.18</td>
+      <td class="gt_row gt_right">510</td>
+      <td class="gt_row gt_right">2.5</td>
+      <td class="gt_row gt_right">3958</td>
+    </tr>
+  </tbody>
+  
+  <tfoot>
+    <tr class="gt_footnotes">
+      <td colspan="7">
+        <p class="gt_footnote">
+          <sup class="gt_footnote_marks">
+            <em>1</em>
+          </sup>
+           
+          <em>Guriev and Treisman (2019a, 2019b)</em>
+          <br />
+        </p>
+      </td>
+    </tr>
+  </tfoot>
+</table></div>
+</div>

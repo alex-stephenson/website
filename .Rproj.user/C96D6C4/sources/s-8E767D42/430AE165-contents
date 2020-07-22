@@ -1,0 +1,187 @@
+---
+title: "#Boko Haram on Twitter"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: bootstrap
+    orientation: columns
+    vertical_layout: fill
+---
+
+
+```{r setup, include=FALSE}
+set.seed(1234)
+library(flexdashboard)
+library(shiny)
+library(tidyverse)
+library(rtweet)
+library(tidytext)### need to get stopwords for other languages too
+library(wordcloud)
+library(igraph)
+library(maps)
+library(ggraph)
+library(widyr)
+library(lubridate)
+library(ggthemes)
+
+rt <- readRDS("BH_data.rds") 
+
+
+```
+
+Sidebar {.sidebar}
+-----------------------------------------------------------------------
+
+This prototype dashboard shows data regarding tweets that use the hashtag (#) "BokoHaram" between the 25th June and the 3rd July. The dashboard is intended to display how active data monitoring of location, sentiment and word frequency could be used to influence strategic communication campaigns.
+
+
+There are a number of potential developments. For example, the dashboard could be ammended to update in real time, allowing users to monitor the response to strategic communication intervetions. Alternatively, functionality could be added to show data for different key phrases, from specific accounts or in response to specific tweets. This has the added benefit of allowing users to discern whether anti-misinformation messages are effective and whether they are being received positively. 
+
+
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+
+### Changes in sentiment for tweets mentioning '#BokoHaram
+
+```{r fig.height=8, fig.width=16}
+
+
+afinn <- get_sentiments("afinn")
+
+rt_tokens <- rt %>% 
+  select(text, created_at) %>% 
+  unnest_tokens(word, text, token = "tweets")
+
+  
+sentiment_over_time <- rt_tokens %>% 
+  inner_join(get_sentiments("afinn"), by = "word") %>% 
+  mutate(created_at = floor_date(created_at, unit = "6 hours")) %>% 
+  add_count(created_at, word) %>%
+  mutate(total_score = value * n) %>%
+  group_by(created_at) 
+  
+
+
+sentiment_over_time %>% 
+  summarise(by_day = sum(total_score)) %>% 
+  ggplot(aes(created_at, by_day, fill = by_day > 0)) +
+  geom_col(show.legend = F) + 
+  theme_minimal()+
+  ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", size = 22),
+                 axis.text.x = element_text(size = 16),
+                 axis.text.y = element_text(size = 16),
+                 axis.title.x = element_text(size = 22, family = "IBM Plex Sans"),) +
+  scale_fill_manual(values = c("firebrick", "forestgreen")) +
+  ylab("") +
+  xlab("Net Daily Sentiment") +
+  scale_y_continuous(labels = scales::comma)
+
+```
+
+### Network of accounts using the #BokoHaram hashtag
+
+```{r fig.height=12, fig.width=16}
+boko_haram_net <- network_data(rt, "retweet,mention, reply")
+
+screen_names <- rt %>% 
+  select(screen_name, user_id)
+
+boko_haram_net_graph <- boko_haram_net %>% 
+  left_join(screen_names, by = c('from' = 'user_id')) %>% 
+  pairwise_count(screen_name, to, sort = T) %>% 
+  filter(n > 10) %>% 
+  ggraph(.) +
+  geom_edge_link(aes(edge_alpha = n)) +
+  geom_node_point(colour = "lightblue", size = 5) +
+  theme_graph() +
+  coord_fixed() +
+  theme(plot.caption = element_text(family = "IBM Plex Sans", size = 16, face = "italic"))+
+  geom_node_text(aes(label= name), repel = T) +
+  labs(caption ="Retweets, mentions and replies of Twitter accounts using the hashtag 'BokoHaram'. \nLine opacity represents the number of engagements", fill = "Number of engagements")
+
+boko_haram_net_graph
+
+
+```
+
+
+Column {data-width=350}
+-----------------------------------------------------------------------
+
+### Time Series plot of tweets using the BokoHaram hashtag (#)
+
+```{r fig.width=13.8}
+
+ts_rt <- rt %>%
+  ts_plot("3 hours") +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", size = 22),
+                 axis.text.x = element_text(size = 16),
+                 axis.text.y = element_text(size = 16),
+                 axis.title.x = element_text(size = 22)) +
+  #theme(axis.title.x = element_text(family, face, colour, size))
+  labs(x = "Date", 
+       y = "")
+
+ts_rt
+```
+
+### Wordcloud of most common words
+
+```{r fig.width=12.8, fig.height=7}
+
+rt_common_words <- rt %>%
+  select(text) %>% 
+  unnest_tokens(word, text, token = "tweets") %>% 
+  anti_join(tidytext::stop_words) %>% ### need to get stopwords for other languages too
+  count(word, sort = T) %>% 
+  filter(word != "amp") %>% 
+  filter(word != "#bokoharam") %>% 
+    filter(word != "boko") %>% 
+  top_n(20, n) %>% 
+  ggplot(aes(reorder(word, n), n, fill = n)) +
+  geom_col(show.legend = F) +
+  coord_flip() +
+  theme_minimal() +
+  #scale_colour_solarized() +
+  labs(  x = "",
+       y = "") +
+  theme(legend.position = "none") +
+    ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", size = 22),
+                 axis.text.x = element_text(size = 16),
+                 axis.text.y = element_text(size = 16, family = "IBM Plex Sans"),
+                 axis.title.x = element_text(size = 22))
+  
+rt_common_words
+
+
+
+```
+
+
+### Location of tweets mentioning '#BokoHaram'
+
+
+```{r fig.width=12.8}
+rt_location <- rt %>% 
+  select(location) %>% 
+  filter(location != "") %>% 
+  count(location, sort = T) %>% 
+  filter(n >= 18) %>% 
+  ggplot(aes(reorder(location,n), n, fill = n)) +
+  geom_bar(stat = "identity") +
+  coord_flip()  +
+  theme_minimal() +
+  #scale_colour_solarized() +
+  labs(  x = "",
+       y = "") +
+  theme(legend.position = "none") +
+    ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", size = 22),
+                 axis.text.x = element_text(size = 16),
+                 axis.text.y = element_text(size = 22, family = "IBM Plex Sans"),
+                 axis.title.x = element_text(size = 22)) 
+
+
+rt_location
+```
+

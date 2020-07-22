@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    
+    <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="generator" content="Hugo 0.74.2 with theme Tranquilpeak 0.4.8-BETA">
+<meta name="author" content="Alex Stephenson">
+<meta name="keywords" content="tech">
+<meta name="description" content="
+
+
+">
+
+
+<meta property="og:description" content="
+
+
+">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Creating a Dashboard to analyse &#39;#Boko Haram&#39; tweets">
+<meta name="twitter:title" content="Creating a Dashboard to analyse &#39;#Boko Haram&#39; tweets">
+<meta property="og:url" content="/2020/07/creating-a-dashboard-to-analyse-boko-haram-tweets.en-us/">
+<meta property="twitter:url" content="/2020/07/creating-a-dashboard-to-analyse-boko-haram-tweets.en-us/">
+<meta property="og:site_name" content="Alex Stephenson">
+<meta property="og:description" content="
+
+
+">
+<meta name="twitter:description" content="
+
+
+">
+<meta property="og:locale" content="en-us">
+
+  
+    <meta property="article:published_time" content="2020-07-21T00:00:00">
+  
+  
+    <meta property="article:modified_time" content="2020-07-21T00:00:00">
+  
+  
+  
+  
+
+
+<meta name="twitter:card" content="summary">
+
+  <meta name="twitter:site" content="@alex_stephenson">
+
+
+  <meta name="twitter:creator" content="@alex_stephenson">
+
+
+
+
+
+
+
+
+
+
+  <meta property="og:image" content="https://www.gravatar.com/avatar/ddb05d0343d0301444a94bb6c89911b3?s=640">
+  <meta property="twitter:image" content="https://www.gravatar.com/avatar/ddb05d0343d0301444a94bb6c89911b3?s=640">
+
+
+    <title>Creating a Dashboard to analyse &#39;#Boko Haram&#39; tweets</title>
+
+    <link rel="icon" href="/favicon.png">
+    
+
+    
+
+    <link rel="canonical" href="/2020/07/creating-a-dashboard-to-analyse-boko-haram-tweets.en-us/">
+
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha256-eZrrJcwDc/3uDhsdt61sL2oOBY362qM3lon1gyExkL0=" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancybox/2.1.4/jquery.fancybox.min.css" integrity="sha256-vuXZ9LGmmwtjqFX1F+EKin1ThZMub58gKULUyf0qECk=" crossorigin="anonymous" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fancybox/2.1.4/helpers/jquery.fancybox-thumbs.min.css" integrity="sha256-SEa4XYAHihTcEP1f5gARTB2K26Uk8PsndQYHQC1f4jU=" crossorigin="anonymous" />
+    
+    
+    <link rel="stylesheet" href="/css/style-twzjdbqhmnnacqs0pwwdzcdbt8yhv8giawvjqjmyfoqnvazl0dalmnhdkvp7.min.css" />
+    
+    
+
+    
+      
+    
+    
+  </head>
+
+  <body>
+    <div id="blog">
+      <header id="header" data-behavior="1">
+  <i id="btn-open-sidebar" class="fa fa-lg fa-bars"></i>
+  <div class="header-title">
+    <a class="header-title-link" href="/">Alex Stephenson</a>
+  </div>
+  
+    
+      <a class="header-right-picture "
+         href="/#about">
+    
+    
+    
+      
+        <img class="header-picture" src="https://www.gravatar.com/avatar/ddb05d0343d0301444a94bb6c89911b3?s=90" alt="Author&#39;s picture" />
+      
+    
+    </a>
+  
+</header>
+
+      <nav id="sidebar" data-behavior="1">
+  <div class="sidebar-container">
+    
+      <div class="sidebar-profile">
+        <a href="/#about">
+          <img class="sidebar-profile-picture" src="https://www.gravatar.com/avatar/ddb05d0343d0301444a94bb6c89911b3?s=110" alt="Author&#39;s picture" />
+        </a>
+        <h4 class="sidebar-profile-name">Alex Stephenson</h4>
+        
+          <h5 class="sidebar-profile-bio">Politics grad interested in authoritarian politics, environmental issues and rstats.
+Contact me at <a href="mailto:alex.stephenson@mac.com">alex.stephenson@mac.com</a></h5>
+        
+      </div>
+    
+    <ul class="sidebar-buttons">
+      
+  <li class="sidebar-button">
+    
+      <a class="sidebar-button-link " href="/">
+    
+      <i class="sidebar-button-icon fa fa-lg fa-home"></i>
+      
+      <span class="sidebar-button-desc">Home</span>
+    </a>
+  </li>
+
+  <li class="sidebar-button">
+    
+      <a class="sidebar-button-link " href="/categories">
+    
+      <i class="sidebar-button-icon fa fa-lg fa-bookmark"></i>
+      
+      <span class="sidebar-button-desc">Categories</span>
+    </a>
+  </li>
+
+  <li class="sidebar-button">
+    
+      <a class="sidebar-button-link " href="/tags">
+    
+      <i class="sidebar-button-icon fa fa-lg fa-tags"></i>
+      
+      <span class="sidebar-button-desc">Tags</span>
+    </a>
+  </li>
+
+  <li class="sidebar-button">
+    
+      <a class="sidebar-button-link " href="/archives">
+    
+      <i class="sidebar-button-icon fa fa-lg fa-archive"></i>
+      
+      <span class="sidebar-button-desc">Archives</span>
+    </a>
+  </li>
+
+  <li class="sidebar-button">
+    
+      <a class="sidebar-button-link " href="/#about">
+    
+      <i class="sidebar-button-icon fa fa-lg fa-question"></i>
+      
+      <span class="sidebar-button-desc">About</span>
+    </a>
+  </li>
+
+
+    </ul>
+    <ul class="sidebar-buttons">
+      
+  <li class="sidebar-button">
+    
+      <a class="sidebar-button-link " href="https://github.com/alex-stephenson">
+    
+      <i class="sidebar-button-icon fa fa-lg fa-github"></i>
+      
+      <span class="sidebar-button-desc">GitHub</span>
+    </a>
+  </li>
+
+  <li class="sidebar-button">
+    
+      <a class="sidebar-button-link " href="https://drive.google.com/file/d/1TC3WQiAoMrQ6zGX3BdyX9WmpiNfADYB9/view?usp=sharing">
+    
+      <i class="sidebar-button-icon fa fa-lg fa-file"></i>
+      
+      <span class="sidebar-button-desc">Resume</span>
+    </a>
+  </li>
+
+
+    </ul>
+    <ul class="sidebar-buttons">
+      
+  <li class="sidebar-button">
+    
+      <a class="sidebar-button-link " href="/">
+    
+      
+      
+      <span class="sidebar-button-desc"></span>
+    </a>
+  </li>
+
+
+    </ul>
+  </div>
+</nav>
+
+      
+
+      <div id="main" data-behavior="1"
+        class="
+               hasCoverMetaIn
+               ">
+        <article class="post" itemscope itemType="http://schema.org/BlogPosting">
+          
+          
+            <div class="post-header main-content-wrap text-left">
+  
+    <h1 class="post-title" itemprop="headline">
+      Creating a Dashboard to analyse &#39;#Boko Haram&#39; tweets
+    </h1>
+  
+  
+  <div class="postShorten-meta post-meta">
+    
+      <time itemprop="datePublished" datetime="2020-07-21T00:00:00Z">
+        
+  July 21, 2020
+
+      </time>
+    
+    
+  </div>
+
+</div>
+          
+          <div class="post-content markdown" itemprop="articleBody">
+            <div class="main-content-wrap">
+              <div id="sidebar" class="section level2 sidebar">
+<h2>Sidebar</h2>
+<p>This prototype dashboard shows data regarding tweets that use the hashtag (#) “BokoHaram” between the 25th June and the 3rd July. The dashboard is intended to display how active data monitoring of location, sentiment and word frequency could be used to influence strategic communication campaigns.</p>
+<p>There are a number of potential developments. For example, the dashboard could be ammended to update in real time, allowing users to monitor the response to strategic communication intervetions. Alternatively, functionality could be added to show data for different key phrases, from specific accounts or in response to specific tweets. This has the added benefit of allowing users to discern whether anti-misinformation messages are effective and whether they are being received positively.</p>
+</div>
+<div id="column" class="section level2" data-width="400">
+<h2>Column</h2>
+<div id="changes-in-sentiment-for-tweets-mentioning-bokoharam" class="section level3">
+<h3>Changes in sentiment for tweets mentioning ’#BokoHaram</h3>
+<pre class="r"><code>afinn &lt;- get_sentiments(&quot;afinn&quot;)
+
+rt_tokens &lt;- rt %&gt;% 
+  select(text, created_at) %&gt;% 
+  unnest_tokens(word, text, token = &quot;tweets&quot;)</code></pre>
+<pre><code>## Using `to_lower = TRUE` with `token = &#39;tweets&#39;` may not preserve URLs.</code></pre>
+<pre class="r"><code>sentiment_over_time &lt;- rt_tokens %&gt;% 
+  inner_join(get_sentiments(&quot;afinn&quot;), by = &quot;word&quot;) %&gt;% 
+  mutate(created_at = floor_date(created_at, unit = &quot;6 hours&quot;)) %&gt;% 
+  add_count(created_at, word) %&gt;%
+  mutate(total_score = value * n) %&gt;%
+  group_by(created_at) 
+  
+
+
+sentiment_over_time %&gt;% 
+  summarise(by_day = sum(total_score)) %&gt;% 
+  ggplot(aes(created_at, by_day, fill = by_day &gt; 0)) +
+  geom_col(show.legend = F) + 
+  theme_minimal()+
+  ggplot2::theme(plot.title = ggplot2::element_text(face = &quot;bold&quot;, size = 22),
+                 axis.text.x = element_text(size = 16),
+                 axis.text.y = element_text(size = 16),
+                 axis.title.x = element_text(size = 22, family = &quot;IBM Plex Sans&quot;),) +
+  scale_fill_manual(values = c(&quot;firebrick&quot;, &quot;forestgreen&quot;)) +
+  ylab(&quot;&quot;) +
+  xlab(&quot;Net Daily Sentiment&quot;) +
+  scale_y_continuous(labels = scales::comma)</code></pre>
+<p><img src="/post/2020-07-21-creating-a-dashboard-to-analyse-boko-haram-tweets.en-us_files/figure-html/unnamed-chunk-1-1.png" width="1536" /></p>
+</div>
+<div id="network-of-accounts-using-the-bokoharam-hashtag" class="section level3">
+<h3>Network of accounts using the #BokoHaram hashtag</h3>
+<pre class="r"><code>boko_haram_net &lt;- network_data(rt, &quot;retweet,mention, reply&quot;)
+
+screen_names &lt;- rt %&gt;% 
+  select(screen_name, user_id)
+
+boko_haram_net_graph &lt;- boko_haram_net %&gt;% 
+  left_join(screen_names, by = c(&#39;from&#39; = &#39;user_id&#39;)) %&gt;% 
+  pairwise_count(screen_name, to, sort = T) %&gt;% 
+  filter(n &gt; 10) %&gt;% 
+  ggraph(.) +
+  geom_edge_link(aes(edge_alpha = n)) +
+  geom_node_point(colour = &quot;lightblue&quot;, size = 5) +
+  theme_graph() +
+  coord_fixed() +
+  theme(plot.caption = element_text(family = &quot;IBM Plex Sans&quot;, size = 16, face = &quot;italic&quot;))+
+  geom_node_text(aes(label= name), repel = T) +
+  labs(caption =&quot;Retweets, mentions and replies of Twitter accounts using the hashtag &#39;BokoHaram&#39;. \nLine opacity represents the number of engagements&quot;, fill = &quot;Number of engagements&quot;)</code></pre>
+<pre><code>## Using `stress` as default layout</code></pre>
+<pre class="r"><code>boko_haram_net_graph</code></pre>
+<p><img src="/post/2020-07-21-creating-a-dashboard-to-analyse-boko-haram-tweets.en-us_files/figure-html/unnamed-chunk-2-1.png" width="1536" /></p>
+</div>
+</div>
+<div id="column-1" class="section level2" data-width="350">
+<h2>Column</h2>
+<div id="time-series-plot-of-tweets-using-the-bokoharam-hashtag" class="section level3">
+<h3>Time Series plot of tweets using the BokoHaram hashtag (#)</h3>
+<pre class="r"><code>ts_rt &lt;- rt %&gt;%
+  ts_plot(&quot;3 hours&quot;) +
+  ggplot2::theme_minimal() +
+  ggplot2::theme(plot.title = ggplot2::element_text(face = &quot;bold&quot;, size = 22),
+                 axis.text.x = element_text(size = 16),
+                 axis.text.y = element_text(size = 16),
+                 axis.title.x = element_text(size = 22)) +
+  #theme(axis.title.x = element_text(family, face, colour, size))
+  labs(x = &quot;Date&quot;, 
+       y = &quot;&quot;)
+
+ts_rt</code></pre>
+<p><img src="/post/2020-07-21-creating-a-dashboard-to-analyse-boko-haram-tweets.en-us_files/figure-html/unnamed-chunk-3-1.png" width="1324.8" /></p>
+</div>
+<div id="wordcloud-of-most-common-words" class="section level3">
+<h3>Wordcloud of most common words</h3>
+<pre class="r"><code>rt_common_words &lt;- rt %&gt;%
+  select(text) %&gt;% 
+  unnest_tokens(word, text, token = &quot;tweets&quot;) %&gt;% 
+  anti_join(tidytext::stop_words) %&gt;% ### need to get stopwords for other languages too
+  count(word, sort = T) %&gt;% 
+  filter(word != &quot;amp&quot;) %&gt;% 
+  filter(word != &quot;#bokoharam&quot;) %&gt;% 
+    filter(word != &quot;boko&quot;) %&gt;% 
+  top_n(20, n) %&gt;% 
+  ggplot(aes(reorder(word, n), n, fill = n)) +
+  geom_col(show.legend = F) +
+  coord_flip() +
+  theme_minimal() +
+  #scale_colour_solarized() +
+  labs(  x = &quot;&quot;,
+       y = &quot;&quot;) +
+  theme(legend.position = &quot;none&quot;) +
+    ggplot2::theme(plot.title = ggplot2::element_text(face = &quot;bold&quot;, size = 22),
+                 axis.text.x = element_text(size = 16),
+                 axis.text.y = element_text(size = 16, family = &quot;IBM Plex Sans&quot;),
+                 axis.title.x = element_text(size = 22))</code></pre>
+<pre><code>## Using `to_lower = TRUE` with `token = &#39;tweets&#39;` may not preserve URLs.</code></pre>
+<pre><code>## Joining, by = &quot;word&quot;</code></pre>
+<pre class="r"><code>rt_common_words</code></pre>
+<p><img src="/post/2020-07-21-creating-a-dashboard-to-analyse-boko-haram-tweets.en-us_files/figure-html/unnamed-chunk-4-1.png" width="1228.8" /></p>
+</div>
+<div id="location-of-tweets-mentioning-bokoharam" class="section level3">
+<h3>Location of tweets mentioning ‘#BokoHaram’</h3>
+<pre class="r"><code>rt_location &lt;- rt %&gt;% 
+  select(location) %&gt;% 
+  filter(location != &quot;&quot;) %&gt;% 
+  count(location, sort = T) %&gt;% 
+  filter(n &gt;= 18) %&gt;% 
+  ggplot(aes(reorder(location,n), n, fill = n)) +
+  geom_bar(stat = &quot;identity&quot;) +
+  coord_flip()  +
+  theme_minimal() +
+  #scale_colour_solarized() +
+  labs(  x = &quot;&quot;,
+       y = &quot;&quot;) +
+  theme(legend.position = &quot;none&quot;) +
+    ggplot2::theme(plot.title = ggplot2::element_text(face = &quot;bold&quot;, size = 22),
+                 axis.text.x = element_text(size = 16),
+                 axis.text.y = element_text(size = 22, family = &quot;IBM Plex Sans&quot;),
+                 axis.title.x = element_text(size = 22)) 
+
+
+rt_location</code></pre>
+<p><img src="/post/2020-07-21-creating-a-dashboard-to-analyse-boko-haram-tweets.en-us_files/figure-html/unnamed-chunk-5-1.png" width="1228.8" /></p>
+</div>
+</div>
+
+              
+            </div>
+          </div>
+          <div id="post-footer" class="post-footer main-content-wrap">
+            
+              
+            
+            <div class="post-actions-wrap">
+  
+      <nav >
+        <ul class="post-actions post-action-nav">
+          
+            <li class="post-action">
+              
+                <a class="post-action-btn btn btn--disabled">
+              
+                  <i class="fa fa-angle-left"></i>
+                  <span class="hide-xs hide-sm text-small icon-ml">NEXT</span>
+                </a>
+            </li>
+            <li class="post-action">
+              
+                <a class="post-action-btn btn btn--default tooltip--top" href="/2020/07/greenpeace_xr/" data-tooltip="From Greenpeace to XR: How The Structure of Environmental Movements Shapes Political Outcomes">
+              
+                  <span class="hide-xs hide-sm text-small icon-mr">PREVIOUS</span>
+                  <i class="fa fa-angle-right"></i>
+                </a>
+            </li>
+          
+        </ul>
+      </nav>
+    <ul class="post-actions post-action-share" >
+      
+        <li class="post-action hide-lg hide-md hide-sm">
+          <a class="post-action-btn btn btn--default btn-open-shareoptions" href="#btn-open-shareoptions">
+            <i class="fa fa-share-alt"></i>
+          </a>
+        </li>
+        
+          <li class="post-action hide-xs">
+            <a class="post-action-btn btn btn--default" target="new" href="https://www.facebook.com/sharer/sharer.php?u=/2020/07/creating-a-dashboard-to-analyse-boko-haram-tweets.en-us/">
+              <i class="fa fa-facebook-official"></i>
+            </a>
+          </li>
+        
+          <li class="post-action hide-xs">
+            <a class="post-action-btn btn btn--default" target="new" href="https://twitter.com/intent/tweet?text=/2020/07/creating-a-dashboard-to-analyse-boko-haram-tweets.en-us/">
+              <i class="fa fa-twitter"></i>
+            </a>
+          </li>
+        
+          <li class="post-action hide-xs">
+            <a class="post-action-btn btn btn--default" target="new" href="https://plus.google.com/share?url=/2020/07/creating-a-dashboard-to-analyse-boko-haram-tweets.en-us/">
+              <i class="fa fa-google-plus"></i>
+            </a>
+          </li>
+        
+      
+      
+        <li class="post-action">
+          <a class="post-action-btn btn btn--default" href="#disqus_thread">
+            <i class="fa fa-comment-o"></i>
+          </a>
+        </li>
+      
+      <li class="post-action">
+        
+          <a class="post-action-btn btn btn--default" href="#">
+        
+          <i class="fa fa-list"></i>
+        </a>
+      </li>
+    </ul>
+  
+</div>
+
+            
+              
+                <div id="disqus_thread">
+  <noscript>Please enable JavaScript to view the <a href="//disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+              
+            
+          </div>
+        </article>
+        <footer id="footer" class="main-content-wrap">
+  <span class="copyrights">
+    &copy; 2020 Alex Stephenson. All Rights Reserved
+  </span>
+</footer>
+
+      </div>
+      <div id="bottom-bar" class="post-bottom-bar" data-behavior="1">
+        <div class="post-actions-wrap">
+  
+      <nav >
+        <ul class="post-actions post-action-nav">
+          
+            <li class="post-action">
+              
+                <a class="post-action-btn btn btn--disabled">
+              
+                  <i class="fa fa-angle-left"></i>
+                  <span class="hide-xs hide-sm text-small icon-ml">NEXT</span>
+                </a>
+            </li>
+            <li class="post-action">
+              
+                <a class="post-action-btn btn btn--default tooltip--top" href="/2020/07/greenpeace_xr/" data-tooltip="From Greenpeace to XR: How The Structure of Environmental Movements Shapes Political Outcomes">
+              
+                  <span class="hide-xs hide-sm text-small icon-mr">PREVIOUS</span>
+                  <i class="fa fa-angle-right"></i>
+                </a>
+            </li>
+          
+        </ul>
+      </nav>
+    <ul class="post-actions post-action-share" >
+      
+        <li class="post-action hide-lg hide-md hide-sm">
+          <a class="post-action-btn btn btn--default btn-open-shareoptions" href="#btn-open-shareoptions">
+            <i class="fa fa-share-alt"></i>
+          </a>
+        </li>
+        
+          <li class="post-action hide-xs">
+            <a class="post-action-btn btn btn--default" target="new" href="https://www.facebook.com/sharer/sharer.php?u=/2020/07/creating-a-dashboard-to-analyse-boko-haram-tweets.en-us/">
+              <i class="fa fa-facebook-official"></i>
+            </a>
+          </li>
+        
+          <li class="post-action hide-xs">
+            <a class="post-action-btn btn btn--default" target="new" href="https://twitter.com/intent/tweet?text=/2020/07/creating-a-dashboard-to-analyse-boko-haram-tweets.en-us/">
+              <i class="fa fa-twitter"></i>
+            </a>
+          </li>
+        
+          <li class="post-action hide-xs">
+            <a class="post-action-btn btn btn--default" target="new" href="https://plus.google.com/share?url=/2020/07/creating-a-dashboard-to-analyse-boko-haram-tweets.en-us/">
+              <i class="fa fa-google-plus"></i>
+            </a>
+          </li>
+        
+      
+      
+        <li class="post-action">
+          <a class="post-action-btn btn btn--default" href="#disqus_thread">
+            <i class="fa fa-comment-o"></i>
+          </a>
+        </li>
+      
+      <li class="post-action">
+        
+          <a class="post-action-btn btn btn--default" href="#">
+        
+          <i class="fa fa-list"></i>
+        </a>
+      </li>
+    </ul>
+  
+</div>
+
+      </div>
+      <div id="share-options-bar" class="share-options-bar" data-behavior="1">
+  <i id="btn-close-shareoptions" class="fa fa-close"></i>
+  <ul class="share-options">
+    
+      <li class="share-option">
+        <a class="share-option-btn" target="new" href="https://www.facebook.com/sharer/sharer.php?u=%2F2020%2F07%2Fcreating-a-dashboard-to-analyse-boko-haram-tweets.en-us%2F">
+          <i class="fa fa-facebook-official"></i><span>Share on Facebook</span>
+        </a>
+      </li>
+    
+      <li class="share-option">
+        <a class="share-option-btn" target="new" href="https://twitter.com/intent/tweet?text=%2F2020%2F07%2Fcreating-a-dashboard-to-analyse-boko-haram-tweets.en-us%2F">
+          <i class="fa fa-twitter"></i><span>Share on Twitter</span>
+        </a>
+      </li>
+    
+      <li class="share-option">
+        <a class="share-option-btn" target="new" href="https://plus.google.com/share?url=%2F2020%2F07%2Fcreating-a-dashboard-to-analyse-boko-haram-tweets.en-us%2F">
+          <i class="fa fa-google-plus"></i><span>Share on Google&#43;</span>
+        </a>
+      </li>
+    
+  </ul>
+</div>
+<div id="share-options-mask" class="share-options-mask"></div>
+    </div>
+    
+    <div id="about">
+  <div id="about-card">
+    <div id="about-btn-close">
+      <i class="fa fa-remove"></i>
+    </div>
+    
+      <img id="about-card-picture" src="https://www.gravatar.com/avatar/ddb05d0343d0301444a94bb6c89911b3?s=110" alt="Author&#39;s picture" />
+    
+    <h4 id="about-card-name">Alex Stephenson</h4>
+    
+      <div id="about-card-bio">Politics grad interested in authoritarian politics, environmental issues and rstats.
+Contact me at <a href="mailto:alex.stephenson@mac.com">alex.stephenson@mac.com</a></div>
+    
+    
+      <div id="about-card-job">
+        <i class="fa fa-briefcase"></i>
+        <br/>
+        Looking for work!
+      </div>
+    
+    
+      <div id="about-card-location">
+        <i class="fa fa-map-marker"></i>
+        <br/>
+        London
+      </div>
+    
+  </div>
+</div>
+
+    
+
+    
+  
+    
+      <div id="cover" style="background-image:url('/images/cover.jpg');"></div>
+    
+  
+
+
+    
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.4/jquery.min.js" integrity="sha256-BbhdlvQf/xTY9gja0Dq3HiwQF8LaCRTXxZKRutelT44=" crossorigin="anonymous"></script>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js" integrity="sha256-/BfiIkHlHoVihZdc6TFuj7MmJ0TWcWsMXkeDFwhi0zw=" crossorigin="anonymous"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fancybox/2.1.7/js/jquery.fancybox.min.js" integrity="sha256-GEAnjcTqVP+vBp3SSc8bEDQqvWAZMiHyUSIorrWwH50=" crossorigin="anonymous"></script>
+
+
+<script src="/js/script-pcw6v3xilnxydl1vddzazdverrnn9ctynvnxgwho987mfyqkuylcb1nlt.min.js"></script>
+
+
+<script lang="javascript">
+window.onload = updateMinWidth;
+window.onresize = updateMinWidth;
+document.getElementById("sidebar").addEventListener("transitionend", updateMinWidth);
+function updateMinWidth() {
+  var sidebar = document.getElementById("sidebar");
+  var main = document.getElementById("main");
+  main.style.minWidth = "";
+  var w1 = getComputedStyle(main).getPropertyValue("min-width");
+  var w2 = getComputedStyle(sidebar).getPropertyValue("width");
+  var w3 = getComputedStyle(sidebar).getPropertyValue("left");
+  main.style.minWidth = `calc(${w1} - ${w2} - ${w3})`;
+}
+</script>
+
+<script>
+$(document).ready(function() {
+  hljs.configure({ classPrefix: '', useBR: false });
+  $('pre.code-highlight > code, pre > code').each(function(i, block) {
+    if (!$(this).hasClass('codeblock')) {
+      $(this).addClass('codeblock');
+    }
+    hljs.highlightBlock(block);
+  });
+});
+</script>
+
+
+  
+    
+      <script>
+        var disqus_config = function () {
+          this.page.url = '\/2020\/07\/creating-a-dashboard-to-analyse-boko-haram-tweets.en-us\/';
+          
+            this.page.identifier = '\/2020\/07\/creating-a-dashboard-to-analyse-boko-haram-tweets.en-us\/'
+          
+        };
+        (function() {
+          
+          
+          if (window.location.hostname == "localhost") {
+            return;
+          }
+          var d = document, s = d.createElement('script');
+          var disqus_shortname = 'hugo-tranquilpeak-theme';
+          s.src = '//' + disqus_shortname + '.disqus.com/embed.js';
+
+          s.setAttribute('data-timestamp', +new Date());
+          (d.head || d.body).appendChild(s);
+        })();
+      </script>
+    
+  
+
+
+
+
+    
+  </body>
+</html>
+

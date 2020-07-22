@@ -1,0 +1,5 @@
+"0","data <- read_csv(""/Users/alexstephenson/Desktop/R_Studio_Work/Dissertation/Dissertation_R/competencies_analysis/competencies_analysis_diss/ira_tweets_csv_hashed.csv"")
+"
+"2","Error in read_csv(""/Users/alexstephenson/Desktop/R_Studio_Work/Dissertation/Dissertation_R/competencies_analysis/competencies_analysis_diss/ira_tweets_csv_hashed.csv"") : 
+  could not find function ""read_csv""
+"
